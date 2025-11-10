@@ -10,6 +10,10 @@ from nand_analyzer import NANDAnalyzer, NANDFlashInfo
 class TestNANDAnalyzer:
     """Test cases for NANDAnalyzer class."""
     
+    # Test constants
+    TEST_BLOCK_SIZE = 128 * 1024  # 128KB block size for tests
+    TEST_PAGE_SIZE = 2048  # 2KB page size for tests
+    
     def test_initialization(self):
         """Test NANDAnalyzer initialization."""
         analyzer = NANDAnalyzer()
@@ -93,36 +97,33 @@ class TestNANDAnalyzer:
         analyzer = NANDAnalyzer()
         
         # Create data with all erased blocks (0xFF)
-        block_size = 128 * 1024
-        data = b'\xFF' * (block_size * 4)
+        data = b'\xFF' * (self.TEST_BLOCK_SIZE * 4)
         
-        bad_blocks = analyzer.analyze_bad_blocks(data, block_size)
+        bad_blocks = analyzer.analyze_bad_blocks(data, self.TEST_BLOCK_SIZE)
         assert len(bad_blocks) == 0
     
     def test_analyze_bad_blocks_with_bad_blocks(self):
         """Test bad block analysis with bad blocks."""
         analyzer = NANDAnalyzer()
         
-        block_size = 128 * 1024
         # Create data with first block good, second block bad
-        good_block = b'\xFF' * block_size
-        bad_block = b'\x00' + b'\xFF' * (block_size - 1)
+        good_block = b'\xFF' * self.TEST_BLOCK_SIZE
+        bad_block = b'\x00' + b'\xFF' * (self.TEST_BLOCK_SIZE - 1)
         data = good_block + bad_block
         
-        bad_blocks = analyzer.analyze_bad_blocks(data, block_size)
+        bad_blocks = analyzer.analyze_bad_blocks(data, self.TEST_BLOCK_SIZE)
         assert len(bad_blocks) > 0
     
     def test_analyze_wear_leveling(self):
         """Test wear leveling analysis."""
         analyzer = NANDAnalyzer()
         
-        page_size = 2048
         # Create 10 pages: 5 erased, 5 written
-        erased_pages = b'\xFF' * (page_size * 5)
-        written_pages = b'\x00' * (page_size * 5)
+        erased_pages = b'\xFF' * (self.TEST_PAGE_SIZE * 5)
+        written_pages = b'\x00' * (self.TEST_PAGE_SIZE * 5)
         data = erased_pages + written_pages
         
-        stats = analyzer.analyze_wear_leveling(data, page_size)
+        stats = analyzer.analyze_wear_leveling(data, self.TEST_PAGE_SIZE)
         
         assert stats['total_pages'] == 10
         assert stats['erased_pages'] == 5
@@ -151,9 +152,7 @@ class TestNANDAnalyzer:
     
     def test_generate_report_with_data(self):
         """Test report generation with data analysis."""
-        page_size = 2048
-        block_size = 128 * 1024
-        data = b'\xFF' * (block_size * 2)
+        data = b'\xFF' * (self.TEST_BLOCK_SIZE * 2)
         
         analyzer = NANDAnalyzer(data)
         id_bytes = bytes([0xEC, 0xD3, 0x51, 0x95])

@@ -49,6 +49,11 @@ class NANDAnalyzer:
         0xC2: "Macronix",
     }
     
+    # Constants for NAND flash analysis
+    SPARE_TO_PAGE_RATIO = 32  # Typical spare area is 1/32 of page size
+    DEFAULT_BLOCK_COUNT = 1024  # Default number of blocks for size estimation
+    ERASED_PAGE_SAMPLE_SIZE = 64  # Number of bytes to check for erased page detection
+    
     def __init__(self, data: Optional[bytes] = None):
         """Initialize NAND Analyzer with optional data."""
         self.data = data
@@ -82,11 +87,11 @@ class NANDAnalyzer:
         # Calculate block size (64KB, 128KB, 256KB, 512KB)
         block_size = 64 * 1024 * (2 ** block_size_code)
         
-        # Estimate spare size based on page size
-        spare_size = page_size // 32  # Typical 1/32 ratio
+        # Estimate spare size based on page size (typical 1/32 ratio)
+        spare_size = page_size // self.SPARE_TO_PAGE_RATIO
         
-        # Total size estimation (this would need more info in real scenario)
-        total_size = block_size * 1024  # Assume 1024 blocks
+        # Total size estimation (assuming default block count)
+        total_size = block_size * self.DEFAULT_BLOCK_COUNT
         
         self.flash_info = NANDFlashInfo(
             manufacturer_id=manufacturer_id,
@@ -178,8 +183,9 @@ class NANDAnalyzer:
             page_start = page_num * page_size
             page_data = data[page_start:page_start + page_size]
             
-            # Check if page is erased (all 0xFF)
-            if all(b == 0xFF for b in page_data[:min(64, len(page_data))]):
+            # Check if page is erased (all 0xFF) by sampling first bytes
+            sample_size = min(self.ERASED_PAGE_SAMPLE_SIZE, len(page_data))
+            if all(b == 0xFF for b in page_data[:sample_size]):
                 erased_pages += 1
             else:
                 written_pages += 1
