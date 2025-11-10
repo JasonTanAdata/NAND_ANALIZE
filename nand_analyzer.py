@@ -6,7 +6,7 @@ A tool for analyzing NAND flash memory data and properties.
 
 import struct
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 
 
@@ -242,7 +242,7 @@ class NANDAnalyzer:
         
         return "\n".join(report)
     
-    def uart_interface(self, command_string: str) -> Dict[str, any]:
+    def uart_interface(self, command_string: str) -> Dict[str, Any]:
         """
         UART interface function that parses command string and processes commands.
         
@@ -289,7 +289,7 @@ class NANDAnalyzer:
                 'supported_commands': ['readdata', 'parseid', 'checkblock', 'calcwear']
             }
     
-    def _handle_readdata(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, any]:
+    def _handle_readdata(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, Any]:
         """
         Handle 'readdata' command - parse ID bytes and read data from file.
         
@@ -335,7 +335,7 @@ class NANDAnalyzer:
                 'message': f'Error processing readdata: {str(e)}'
             }
     
-    def _handle_parseid(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, any]:
+    def _handle_parseid(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, Any]:
         """
         Handle 'parseid' command - parse ID bytes only.
         
@@ -363,7 +363,7 @@ class NANDAnalyzer:
                 'message': f'Invalid hex parameter: {str(e)}'
             }
     
-    def _handle_checkblock(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, any]:
+    def _handle_checkblock(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, Any]:
         """
         Handle 'checkblock' command - check for bad blocks.
         
@@ -412,7 +412,7 @@ class NANDAnalyzer:
                 'message': f'Invalid parameter: {str(e)}'
             }
     
-    def _handle_calcwear(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, any]:
+    def _handle_calcwear(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, Any]:
         """
         Handle 'calcwear' command - calculate wear leveling statistics.
         
