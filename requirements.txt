@@ -1,0 +1,9 @@
+# NAND Flash Analyzer Requirements
+# Basic dependencies for the NAND analyzer tool
+
+# No external dependencies required for basic functionality
+# Python 3.7+ standard library is sufficient
+
+# Optional: for testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
