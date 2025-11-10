@@ -4,6 +4,9 @@
 # No external dependencies required for basic functionality
 # Python 3.7+ standard library is sufficient
 
+# For UART driver
+pyserial>=3.5
+
 # Optional: for testing
 pytest>=7.0.0
 pytest-cov>=4.0.0
