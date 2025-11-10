@@ -6,7 +6,7 @@ A tool for analyzing NAND flash memory data and properties.
 
 import struct
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 
 
@@ -241,6 +241,223 @@ class NANDAnalyzer:
         report.append("=" * 50)
         
         return "\n".join(report)
+    
+    def uart_interface(self, command_string: str) -> Dict[str, Any]:
+        """
+        UART interface function that parses command string and processes commands.
+        
+        Format: "command param1 param2 param3 param4"
+        Where command is the action to perform and param1-param4 are parameters.
+        
+        Args:
+            command_string: Input string containing command and parameters
+            
+        Returns:
+            Dictionary with processing results including status and data
+            
+        Example:
+            >>> analyzer.uart_interface("readdata EC D3 51 95")
+            {'status': 'success', 'command': 'readdata', 'data': {...}}
+        """
+        # Parse the input string
+        parts = command_string.strip().split()
+        
+        if len(parts) != 5:
+            return {
+                'status': 'error',
+                'message': f'Invalid format. Expected 5 parameters (command + 4 params), got {len(parts)}',
+                'command': parts[0] if parts else None
+            }
+        
+        command = parts[0].lower()
+        param1, param2, param3, param4 = parts[1], parts[2], parts[3], parts[4]
+        
+        # Process different commands
+        if command == 'readdata':
+            return self._handle_readdata(param1, param2, param3, param4)
+        elif command == 'parseid':
+            return self._handle_parseid(param1, param2, param3, param4)
+        elif command == 'checkblock':
+            return self._handle_checkblock(param1, param2, param3, param4)
+        elif command == 'calcwear':
+            return self._handle_calcwear(param1, param2, param3, param4)
+        else:
+            return {
+                'status': 'error',
+                'message': f'Unknown command: {command}',
+                'command': command,
+                'supported_commands': ['readdata', 'parseid', 'checkblock', 'calcwear']
+            }
+    
+    def _handle_readdata(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, Any]:
+        """
+        Handle 'readdata' command - parse ID bytes and read data from file.
+        
+        Args:
+            param1-param4: ID bytes in hex format or param4 as filename
+            
+        Returns:
+            Dictionary with status and parsed data
+        """
+        try:
+            # Parse first 4 parameters as hex ID bytes
+            id_bytes = bytes([int(param1, 16), int(param2, 16), int(param3, 16), int(param4, 16)])
+            
+            # Parse ID bytes
+            flash_info = self.parse_id_bytes(id_bytes)
+            
+            result = {
+                'status': 'success',
+                'command': 'readdata',
+                'flash_info': {
+                    'manufacturer_id': f'0x{flash_info.manufacturer_id:02X}',
+                    'manufacturer_name': self.get_manufacturer_name(flash_info.manufacturer_id),
+                    'device_id': f'0x{flash_info.device_id:02X}',
+                    'page_size': flash_info.page_size,
+                    'block_size': flash_info.block_size,
+                    'total_size': flash_info.total_size,
+                    'spare_size': flash_info.spare_size
+                }
+            }
+            
+            return result
+            
+        except ValueError as e:
+            return {
+                'status': 'error',
+                'command': 'readdata',
+                'message': f'Invalid hex parameter: {str(e)}'
+            }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'command': 'readdata',
+                'message': f'Error processing readdata: {str(e)}'
+            }
+    
+    def _handle_parseid(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, Any]:
+        """
+        Handle 'parseid' command - parse ID bytes only.
+        
+        Args:
+            param1-param4: ID bytes in hex format
+            
+        Returns:
+            Dictionary with status and parsed ID information
+        """
+        try:
+            id_bytes = bytes([int(param1, 16), int(param2, 16), int(param3, 16), int(param4, 16)])
+            flash_info = self.parse_id_bytes(id_bytes)
+            
+            return {
+                'status': 'success',
+                'command': 'parseid',
+                'manufacturer': self.get_manufacturer_name(flash_info.manufacturer_id),
+                'manufacturer_id': f'0x{flash_info.manufacturer_id:02X}',
+                'device_id': f'0x{flash_info.device_id:02X}'
+            }
+        except ValueError as e:
+            return {
+                'status': 'error',
+                'command': 'parseid',
+                'message': f'Invalid hex parameter: {str(e)}'
+            }
+    
+    def _handle_checkblock(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, Any]:
+        """
+        Handle 'checkblock' command - check for bad blocks.
+        
+        Args:
+            param1: Block size in KB
+            param2: Start block number
+            param3: End block number
+            param4: Reserved for future use
+            
+        Returns:
+            Dictionary with status and bad block information
+        """
+        try:
+            if not self.data:
+                return {
+                    'status': 'error',
+                    'command': 'checkblock',
+                    'message': 'No data loaded. Please load data first.'
+                }
+            
+            block_size_kb = int(param1)
+            start_block = int(param2)
+            end_block = int(param3)
+            
+            block_size = block_size_kb * 1024
+            
+            # Analyze bad blocks
+            bad_blocks = self.analyze_bad_blocks(self.data, block_size)
+            
+            # Filter by range
+            bad_blocks_in_range = [b for b in bad_blocks if start_block <= b <= end_block]
+            
+            return {
+                'status': 'success',
+                'command': 'checkblock',
+                'block_size_kb': block_size_kb,
+                'range': f'{start_block}-{end_block}',
+                'total_bad_blocks': len(bad_blocks),
+                'bad_blocks_in_range': bad_blocks_in_range,
+                'count_in_range': len(bad_blocks_in_range)
+            }
+        except ValueError as e:
+            return {
+                'status': 'error',
+                'command': 'checkblock',
+                'message': f'Invalid parameter: {str(e)}'
+            }
+    
+    def _handle_calcwear(self, param1: str, param2: str, param3: str, param4: str) -> Dict[str, Any]:
+        """
+        Handle 'calcwear' command - calculate wear leveling statistics.
+        
+        Args:
+            param1: Page size in KB
+            param2: Start page
+            param3: End page
+            param4: Reserved for future use
+            
+        Returns:
+            Dictionary with status and wear leveling statistics
+        """
+        try:
+            if not self.data:
+                return {
+                    'status': 'error',
+                    'command': 'calcwear',
+                    'message': 'No data loaded. Please load data first.'
+                }
+            
+            page_size_kb = int(param1)
+            start_page = int(param2)
+            end_page = int(param3)
+            
+            page_size = page_size_kb * 1024
+            
+            # Calculate wear leveling for entire data
+            wear_stats = self.analyze_wear_leveling(self.data, page_size)
+            
+            return {
+                'status': 'success',
+                'command': 'calcwear',
+                'page_size_kb': page_size_kb,
+                'range': f'{start_page}-{end_page}',
+                'total_pages': wear_stats['total_pages'],
+                'erased_pages': wear_stats['erased_pages'],
+                'written_pages': wear_stats['written_pages'],
+                'utilization_percent': round(wear_stats['utilization_percent'], 2)
+            }
+        except ValueError as e:
+            return {
+                'status': 'error',
+                'command': 'calcwear',
+                'message': f'Invalid parameter: {str(e)}'
+            }
 
 
 def main():

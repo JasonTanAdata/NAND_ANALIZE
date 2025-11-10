@@ -182,5 +182,163 @@ class TestNANDAnalyzer:
         assert "MB" in info_str
 
 
+class TestUARTInterface:
+    """Test cases for UART interface functionality."""
+    
+    def test_uart_interface_invalid_format_too_few_params(self):
+        """Test UART interface with too few parameters."""
+        analyzer = NANDAnalyzer()
+        result = analyzer.uart_interface("readdata EC D3")
+        
+        assert result['status'] == 'error'
+        assert 'Invalid format' in result['message']
+        assert result['command'] == 'readdata'
+    
+    def test_uart_interface_invalid_format_too_many_params(self):
+        """Test UART interface with too many parameters."""
+        analyzer = NANDAnalyzer()
+        result = analyzer.uart_interface("readdata EC D3 51 95 extra param")
+        
+        assert result['status'] == 'error'
+        assert 'Invalid format' in result['message']
+    
+    def test_uart_interface_unknown_command(self):
+        """Test UART interface with unknown command."""
+        analyzer = NANDAnalyzer()
+        result = analyzer.uart_interface("unknowncmd 00 00 00 00")
+        
+        assert result['status'] == 'error'
+        assert result['command'] == 'unknowncmd'
+        assert 'Unknown command' in result['message']
+        assert 'supported_commands' in result
+    
+    def test_uart_interface_readdata_success(self):
+        """Test UART interface readdata command with valid parameters."""
+        analyzer = NANDAnalyzer()
+        result = analyzer.uart_interface("readdata EC D3 51 95")
+        
+        assert result['status'] == 'success'
+        assert result['command'] == 'readdata'
+        assert 'flash_info' in result
+        assert result['flash_info']['manufacturer_id'] == '0xEC'
+        assert result['flash_info']['device_id'] == '0xD3'
+        assert 'Samsung' in result['flash_info']['manufacturer_name']
+    
+    def test_uart_interface_readdata_case_insensitive(self):
+        """Test UART interface with uppercase command."""
+        analyzer = NANDAnalyzer()
+        result = analyzer.uart_interface("READDATA EC D3 51 95")
+        
+        assert result['status'] == 'success'
+        assert result['command'] == 'readdata'
+    
+    def test_uart_interface_readdata_invalid_hex(self):
+        """Test UART interface readdata with invalid hex parameter."""
+        analyzer = NANDAnalyzer()
+        result = analyzer.uart_interface("readdata ZZ D3 51 95")
+        
+        assert result['status'] == 'error'
+        assert result['command'] == 'readdata'
+        assert 'Invalid hex parameter' in result['message']
+    
+    def test_uart_interface_parseid_success(self):
+        """Test UART interface parseid command."""
+        analyzer = NANDAnalyzer()
+        result = analyzer.uart_interface("parseid AD DC 10 95")
+        
+        assert result['status'] == 'success'
+        assert result['command'] == 'parseid'
+        assert result['manufacturer_id'] == '0xAD'
+        assert result['device_id'] == '0xDC'
+        assert 'Hynix' in result['manufacturer']
+    
+    def test_uart_interface_parseid_invalid_hex(self):
+        """Test UART interface parseid with invalid hex."""
+        analyzer = NANDAnalyzer()
+        result = analyzer.uart_interface("parseid GG HH II JJ")
+        
+        assert result['status'] == 'error'
+        assert result['command'] == 'parseid'
+    
+    def test_uart_interface_checkblock_no_data(self):
+        """Test UART interface checkblock without data loaded."""
+        analyzer = NANDAnalyzer()
+        result = analyzer.uart_interface("checkblock 128 0 10 0")
+        
+        assert result['status'] == 'error'
+        assert result['command'] == 'checkblock'
+        assert 'No data loaded' in result['message']
+    
+    def test_uart_interface_checkblock_with_data(self):
+        """Test UART interface checkblock with data."""
+        # Create sample data with bad blocks
+        block_size = 128 * 1024
+        good_block = b'\xFF' * block_size
+        bad_block = b'\x00' + b'\xFF' * (block_size - 1)
+        data = good_block + bad_block + good_block
+        
+        analyzer = NANDAnalyzer(data)
+        result = analyzer.uart_interface("checkblock 128 0 10 0")
+        
+        assert result['status'] == 'success'
+        assert result['command'] == 'checkblock'
+        assert result['block_size_kb'] == 128
+        assert result['range'] == '0-10'
+        assert 'bad_blocks_in_range' in result
+    
+    def test_uart_interface_checkblock_invalid_params(self):
+        """Test UART interface checkblock with invalid parameters."""
+        analyzer = NANDAnalyzer(b'\xFF' * 1024)
+        result = analyzer.uart_interface("checkblock abc 0 10 0")
+        
+        assert result['status'] == 'error'
+        assert result['command'] == 'checkblock'
+    
+    def test_uart_interface_calcwear_no_data(self):
+        """Test UART interface calcwear without data loaded."""
+        analyzer = NANDAnalyzer()
+        result = analyzer.uart_interface("calcwear 2 0 100 0")
+        
+        assert result['status'] == 'error'
+        assert result['command'] == 'calcwear'
+        assert 'No data loaded' in result['message']
+    
+    def test_uart_interface_calcwear_with_data(self):
+        """Test UART interface calcwear with data."""
+        page_size = 2048
+        # Create 10 pages: 5 erased, 5 written
+        erased_pages = b'\xFF' * (page_size * 5)
+        written_pages = b'\x00' * (page_size * 5)
+        data = erased_pages + written_pages
+        
+        analyzer = NANDAnalyzer(data)
+        result = analyzer.uart_interface("calcwear 2 0 10 0")
+        
+        assert result['status'] == 'success'
+        assert result['command'] == 'calcwear'
+        assert result['page_size_kb'] == 2
+        assert result['range'] == '0-10'
+        assert result['total_pages'] == 10
+        assert result['erased_pages'] == 5
+        assert result['written_pages'] == 5
+        assert result['utilization_percent'] == 50.0
+    
+    def test_uart_interface_calcwear_invalid_params(self):
+        """Test UART interface calcwear with invalid parameters."""
+        analyzer = NANDAnalyzer(b'\xFF' * 1024)
+        result = analyzer.uart_interface("calcwear xyz 0 10 0")
+        
+        assert result['status'] == 'error'
+        assert result['command'] == 'calcwear'
+    
+    def test_uart_interface_whitespace_handling(self):
+        """Test UART interface handles extra whitespace."""
+        analyzer = NANDAnalyzer()
+        result = analyzer.uart_interface("  readdata   EC   D3   51   95  ")
+        
+        assert result['status'] == 'success'
+        assert result['command'] == 'readdata'
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
